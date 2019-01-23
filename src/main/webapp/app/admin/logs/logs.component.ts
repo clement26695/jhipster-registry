@@ -19,6 +19,7 @@ export class LogsComponent implements OnInit, OnDestroy {
 
     activeRoute: Route;
     subscription: Subscription;
+    instances: Route[];
 
     constructor(private logsService: LogsService, private routesService: JhiRoutesService) {
         this.filter = '';
@@ -31,15 +32,31 @@ export class LogsComponent implements OnInit, OnDestroy {
         this.subscription = this.routesService.routeChanged$.subscribe((route) => {
             this.activeRoute = route;
             this.displayActiveRouteLogs();
+
+            this.instances = [];
+            this.routesService.findAll().subscribe((data) => {
+                for (const instanceRoute of data) {
+                    if (instanceRoute.appName === this.activeRoute.appName) {
+                        this.instances.push(instanceRoute);
+                    }
+                }
+            });
         });
     }
 
     changeLevel(name: string, level: string) {
         const log = new Log(name, level);
-        if (this.activeRoute && this.activeRoute.status !== 'DOWN') {
-            this.logsService.changeInstanceLevel(this.activeRoute, log).subscribe(() => {
-                this.logsService.findInstanceAll(this.activeRoute).subscribe((response) => (this.loggers = response.body));
-            });
+
+        for (const instance of this.instances) {
+            if (instance.status !== 'DOWN') {
+                this.logsService.changeInstanceLevel(instance, log).subscribe(() => {
+                    if (instance.serviceId === this.activeRoute.serviceId) {
+                        this.logsService.findInstanceAll(this.activeRoute).subscribe((response) => {
+                            this.loggers = response.body;
+                        });
+                    }
+                });
+            }
         }
     }
 
